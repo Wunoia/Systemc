@@ -7,6 +7,7 @@
 SC_MODULE(spi_shift_reg)
 {
     //===== 输入信号 =====
+    sc_in<bool>         start_trig;  // FIFO 通知：开始一帧传输
     sc_in<bool>         rst_n;          // 全局复位，低有效
     sc_in<bool>         sample_en;      // 输入：时序模块，MISO采样使能
     sc_in<bool>         shift_en;       // 输入：时序模块，移位脉冲
