@@ -10,6 +10,10 @@ SC_MODULE(spi_timing_cpol_cpha)
     sc_in<bool>         rst_n;          // 全局复位，低有效
     sc_in<sc_uint<32>>  sck_freq;       // 输入：来自分频模块，SCK目标频率
     sc_in<bool>         clk_en;         // 输入：时钟总开关
+
+    sc_in<bool>         div_valid;      // 输入：分频模块，分频配置有效
+    sc_in<sc_uint<6>>   trans_width;     // 输入：本次帧传输bit宽度
+
     sc_in<bool>         start_trig;     // 输入：来自FIFO，帧传输启动触发脉冲
     sc_in<bool>         cpol;           // 输入：SPI模式配置，时钟空闲电平
     sc_in<bool>         cpha;           // 输入：SPI模式配置，采样边沿选择

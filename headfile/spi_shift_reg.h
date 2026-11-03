@@ -8,9 +8,10 @@ SC_MODULE(spi_shift_reg)
 {
     //===== 输入信号 =====
     sc_in<bool>         rst_n;          // 全局复位，低有效
+    sc_in<bool>         start_trig;      // 输入：启动传输触发脉冲，来自FIFO模块
     sc_in<bool>         sample_en;      // 输入：时序模块，MISO采样使能
     sc_in<bool>         shift_en;       // 输入：时序模块，移位脉冲
-    sc_in<sc_uint<4>>   trans_width;     // 输入：本次帧传输bit宽度
+    sc_in<sc_uint<6>>   trans_width;     // 输入：本次帧传输bit宽度
     sc_in<sc_uint<32>>  tx_parallel;     // 输入：FIFO送来的待发送并行数据
     sc_in<bool>         miso_bit;        // 输入：外部从机MISO串行bit
 

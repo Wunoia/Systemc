@@ -16,6 +16,9 @@ SC_MODULE(spi_status_gen)
     sc_in<bool>         ovr_err;       // 输入：FIFO模块，接收溢出错误
     sc_in<bool>         busy;           // 输入：移位模块，传输忙标志
 
+
+    sc_in<bool>         clear_events;  // 输入：清除事件标志，来自寄存器写操作
+
     //===== 输出信号 =====
     sc_out<sc_uint<16>> status_reg;    // 输出：打包后的状态寄存器，供QEMU读取
     sc_out<bool>        evt_txe;        // 输出事件：发送缓冲区空
@@ -26,6 +29,9 @@ SC_MODULE(spi_status_gen)
     SC_CTOR(spi_status_gen);
 private:
     void status_proc(); // METHOD：组合逻辑组装status、产生事件
+    bool tc_flag;
+    bool ovr_flag;
+
 };
 
 #endif

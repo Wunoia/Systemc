@@ -4,6 +4,8 @@
 
 #include "common.h"
 
+#define FIFO_DEPTH 8
+
 SC_MODULE(spi_fifo_cs)
 {
     //===== 输入信号 =====
@@ -19,6 +21,7 @@ SC_MODULE(spi_fifo_cs)
     //===== 输出信号 =====
     sc_out<sc_uint<32>> tx_parallel;     // 输出：弹出TX FIFO数据给移位寄存器
     sc_out<bool>        start_trig;      // 输出：启动传输触发脉冲，送给时序模块
+    sc_out<sc_uint<32>> rx_rdata;        // 输出：弹出RX FIFO数据给QEMU
     sc_out<bool>        tx_fifo_empty;   // 输出：TX FIFO空标志
     sc_out<bool>        tx_fifo_full;    // 输出：TX FIFO满标志
     sc_out<bool>        rx_fifo_empty;   // 输出：RX FIFO空标志
@@ -29,7 +32,6 @@ SC_MODULE(spi_fifo_cs)
     SC_CTOR(spi_fifo_cs);
 private:
     void fifo_proc();   // THREAD：FIFO读写、溢出检测、产生start_trig
-    void cs_proc();     // METHOD：译码cs_cfg，产生cs_n电平
 };
 
 #endif
