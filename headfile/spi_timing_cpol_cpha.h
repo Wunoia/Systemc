@@ -7,17 +7,19 @@
 SC_MODULE(spi_timing_cpol_cpha)
 {
     //===== 输入信号 =====
-    sc_in<bool>         rst_n;          // 全局复位，低有效
-    sc_in<sc_uint<32>>  sck_freq;       // 输入：来自分频模块，SCK目标频率
-    sc_in<bool>         clk_en;         // 输入：时钟总开关
-    sc_in<bool>         start_trig;     // 输入：来自FIFO，帧传输启动触发脉冲
-    sc_in<bool>         cpol;           // 输入：SPI模式配置，时钟空闲电平
-    sc_in<bool>         cpha;           // 输入：SPI模式配置，采样边沿选择
+    sc_in<bool>         rst_n;          // 全局复位，低有效，来自顶层
+    sc_in<sc_uint<32>>  sck_freq;       // SCK目标频率，来自分频模块
+    sc_in<bool>         clk_en;         // 时钟总开关，来自寄存器使能
+    sc_in<bool>         div_valid;      // 分频配置有效，来自分频模块
+    sc_in<sc_uint<6>>   trans_width;    // 每帧bit数，来自分频/位宽模块
+    sc_in<bool>         start_trig;     // 帧传输启动脉冲，来自FIFO模块
+    sc_in<bool>         cpol;           // 时钟空闲电平，来自SPI模式配置
+    sc_in<bool>         cpha;           // 采样边沿选择，来自SPI模式配置
 
     //===== 输出信号 =====
-    sc_out<bool>        sck;            // 输出：SPI时钟物理信号，对外输出
-    sc_out<bool>        sample_en;      // 输出：采样使能，通知移位寄存器抓取MISO
-    sc_out<bool>        shift_en;       // 输出：移位使能，通知移位寄存器移位
+    sc_out<bool>        sck;            // SPI时钟物理信号，对外输出到从机
+    sc_out<bool>        sample_en;      // 采样使能，通知移位寄存器抓取MISO
+    sc_out<bool>        shift_en;       // 移位使能，通知移位寄存器移位
 
     SC_CTOR(spi_timing_cpol_cpha);
 private:
