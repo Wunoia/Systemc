@@ -12,10 +12,6 @@ void spi_timing_cpol_cpha::timing_proc()
 {
     bool sck_cur;
 
-    // [ERROR] 原实现 while(clk_en) 无限循环，且没有位计数，SCK 永不停；
-    //         CPHA=0 时 MSB 输出时序也不对。
-    // [FIX] 等待 start_trig，检查 clk_en && div_valid，
-    //       按 trans_width 产生固定个数 SCK 周期后停止。
     while (true)
     {
         if (!rst_n.read())
@@ -46,7 +42,6 @@ void spi_timing_cpol_cpha::timing_proc()
 
         if (cpha.read() == 0)
         {
-            // CPHA=0：第一个 SCK 边沿之前先输出 MSB
             shift_en.write(true);
             wait(SC_ZERO_TIME);
             shift_en.write(false);
@@ -78,7 +73,6 @@ void spi_timing_cpol_cpha::timing_proc()
         }
         else
         {
-            // CPHA=1：第一个边沿移位输出，第二个边沿采样
             for (sc_uint<6> i = 0; i < width; ++i)
             {
                 wait(half_t);
@@ -100,8 +94,6 @@ void spi_timing_cpol_cpha::timing_proc()
                 sample_en.write(false);
             }
         }
-
-        // 传输结束，SCK 回到 CPOL
         sck_cur = cpol.read();
         sck.write(sck_cur);
     }

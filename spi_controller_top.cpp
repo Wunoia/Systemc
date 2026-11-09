@@ -89,12 +89,7 @@ spi_controller_top::spi_controller_top(sc_module_name name)
     m_irq_dma->irq(irq);
     m_irq_dma->dma_req(dma_req);
 
-    // [ERROR] SC_METHOD 同 delta 清除，fifo_proc 是 THREAD 可能看不到
-    // [FIX] b_transport 里不能 wait，用 METHOD 清脉冲
-    // SC_METHOD(clear_pulse_proc);
-    // sensitive << tx_wen << rx_ren << clear_events;
-
-    // [FIX]
+    
     SC_THREAD(clear_pulse_proc);
 }
 
@@ -107,14 +102,7 @@ spi_controller_top::~spi_controller_top()
     delete m_fifo_cs;
     delete m_irq_dma;
 }
-// 没有延迟一个 delta，确保 fifo_proc / status_gen 先看到 true
-// void spi_controller_top::clear_pulse_proc()
-// {
-//     if(tx_wen.read())       tx_wen.write(false);
-//     if(rx_ren.read())       rx_ren.write(false);
-//     if(clear_events.read()) clear_events.write(false);
-// }
-// [FIX]
+
 void spi_controller_top::clear_pulse_proc()
 {
     while(true)
@@ -171,9 +159,6 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
                 break;
             case SPI_TXDR:
                 tx_wdata.write(wdata);
-                // [ERROR] 原实现 wait(SC_ZERO_TIME) 非法
-                // tx_wen.write(true); wait(SC_ZERO_TIME); tx_wen.write(false);
-                // [FIX] 只置高，由 clear_pulse_proc 下一 delta 清除
                 tx_wen.write(true);
                 break;
             case SPI_IER:
@@ -214,14 +199,11 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
                 rdata = 0;
                 break;
             case SPI_RXDR:
-                // [ERROR] 原实现 wait 后 rdata=0，读不到数据
-                // [FIX] 读头部数据，再发 rx_ren 弹出
                 rdata = rx_rdata.read();
                 rx_ren.write(true);
                 break;
             case SPI_SR:
                 rdata = status_reg.read();
-                // [FIX] 读清事件
                 clear_events.write(true);
                 break;
             case SPI_IER:
