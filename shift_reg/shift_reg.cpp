@@ -21,6 +21,7 @@ if(!rst_n.read() == 1){
     rx_count = 0;
 }
 while(1){
+    trans_done.write(0);
     rx_reg = 0;
     rx_count = 0;
     
@@ -34,6 +35,9 @@ while(1){
         tx_reg = tx_parallel.read();
         frame_width = trans_width.read();
         trans_done.write(0);
+        if(frame_width != 4 && frame_width != 8 && frame_width != 16 && frame_width != 32){
+            continue;
+        }
         busy.write(1);
 
         while(rx_count < frame_width){
@@ -53,6 +57,8 @@ while(1){
         }
         if(rx_count == frame_width){
             rx_parallel.write(rx_reg);
+            trans_done.write(1);
+            wait(SC_ZERO_TIME);
         }
             busy.write(0);
         }
