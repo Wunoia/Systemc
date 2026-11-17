@@ -38,6 +38,7 @@ spi_controller_top::spi_controller_top(sc_module_name name)
     m_shift->start_trig(start_trig);
     m_shift->sample_en(sample_en);
     m_shift->shift_en(shift_en);
+    m_shift->lsb_first(lsb_first);
     m_shift->trans_width(trans_width);
     m_shift->tx_parallel(tx_parallel);
     m_shift->miso_bit(miso);
@@ -150,6 +151,7 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
                 cpol.write(wdata[1]);
                 cpha.write(wdata[2]);
                 clk_en.write(wdata[3]);
+                lsb_first.write(wdata[4]);
                 break;
             case SPI_BRR:
                 div_cfg.write((sc_uint<8>)wdata);
@@ -188,6 +190,7 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
                 rdata[1] = cpol.read();
                 rdata[2] = cpha.read();
                 rdata[3] = clk_en.read();
+                rdata[4] = lsb_first.read();
                 break;
             case SPI_BRR:
                 rdata = div_cfg.read();
