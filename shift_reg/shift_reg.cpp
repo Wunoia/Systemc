@@ -8,6 +8,7 @@ sc_uint<32> tx_reg = 0;
 sc_uint<32> rx_reg = 0;
 unsigned int frame_width = 0;
 unsigned int rx_count = 0;
+bool frame_lsb_first = false;
 
 mosi.write(false);
 rx_parallel.write(0);
@@ -34,6 +35,7 @@ while(1){
     }else{
         tx_reg = tx_parallel.read();
         frame_width = trans_width.read();
+        frame_lsb_first = lsb_first.read();
         trans_done.write(0);
         if(frame_width != 4 && frame_width != 8 && frame_width != 16 && frame_width != 32){
             continue;
@@ -45,13 +47,23 @@ while(1){
                                            | rst_n.negedge_event());
             if(rst_n == 0){break;}else{
             if(sample_en.posedge()){
-            rx_reg = rx_reg << 1;
-            rx_reg += miso_bit.read();
+            if(frame_lsb_first){
+                // 先收到的是最低位，按接收顺序填入 bit 0、1、2……
+                rx_reg[rx_count] = miso_bit.read();
+            }else{
+                rx_reg = rx_reg << 1;
+                rx_reg += miso_bit.read();
+            }
             rx_count++;
             }
             if(shift_en.posedge()){
-                mosi = tx_reg[frame_width - 1];
-                tx_reg = tx_reg << 1;
+                if(frame_lsb_first){
+                    mosi = tx_reg[0];
+                    tx_reg = tx_reg >> 1;
+                }else{
+                    mosi = tx_reg[frame_width - 1];
+                    tx_reg = tx_reg << 1;
+                }
             }
             }
         }

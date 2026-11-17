@@ -56,6 +56,7 @@ private:
     sc_signal<bool> clk_en;             // 寄存器→时序：时钟总开关
 
     sc_signal<bool> cpol;               // 寄存器→时序：时钟极性
+    sc_signal<bool> lsb_first;          // SPI_CR1[4]：0=MSB先传（默认），1=LSB先传
     sc_signal<bool> cpha;               // 寄存器→时序：时钟相位
     sc_signal<bool> start_bit;          // 寄存器→FIFO：软件启动位
     sc_signal<bool> start_trig;         // FIFO→时序：启动传输脉冲

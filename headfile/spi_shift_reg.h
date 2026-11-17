@@ -10,6 +10,7 @@ SC_MODULE(spi_shift_reg)
     sc_in<bool>         rst_n;          // 全局复位，低有效，来自顶层
     sc_in<bool>         start_trig;     // 启动传输触发脉冲，来自FIFO模块
     sc_in<bool>         sample_en;      // MISO采样使能节拍，来自时序模块
+    sc_in<bool>         lsb_first;     // 位序：0=MSB先传，1=LSB先传；启动时锁存
     sc_in<bool>         shift_en;       // 移位脉冲，来自时序模块
     sc_in<sc_uint<6>>   trans_width;    // 每帧传输bit数，来自分频/位宽模块
     sc_in<sc_uint<32>>  tx_parallel;    // 待发送并行数据，来自TX FIFO
