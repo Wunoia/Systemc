@@ -24,6 +24,9 @@ SC_MODULE(spi_timing_cpol_cpha)
     SC_CTOR(spi_timing_cpol_cpha);
 private:
     void timing_proc(); // 线程：按CPOL/CPHA事件驱动产生时序节拍
+    void latch_start();
+    sc_event start_available;
+    bool start_pending = false;
 };
 
 #endif

@@ -6,6 +6,19 @@ spi_timing_cpol_cpha::spi_timing_cpol_cpha(sc_module_name name)
 {
     SC_THREAD(timing_proc);
     sensitive << rst_n;
+    SC_METHOD(latch_start);
+    sensitive << start_trig.pos();
+    dont_initialize();
+}
+
+void spi_timing_cpol_cpha::latch_start()
+{
+    if (rst_n.read())
+    {
+        // CPHA=0 时，FIFO 可在上一帧的最后半周期内请求下一帧。
+        start_pending = true;
+        start_available.notify(SC_ZERO_TIME);
+    }
 }
 
 void spi_timing_cpol_cpha::timing_proc()
@@ -16,6 +29,7 @@ void spi_timing_cpol_cpha::timing_proc()
     {
         if (!rst_n.read())
         {
+            start_pending = false;
             sck.write(cpol.read());
             sample_en.write(false);
             shift_en.write(false);
@@ -28,8 +42,10 @@ void spi_timing_cpol_cpha::timing_proc()
         sample_en.write(false);
         shift_en.write(false);
 
-        wait(start_trig.posedge_event() | rst_n.negedge_event());
+        while (!start_pending && rst_n.read())
+            wait(start_available | rst_n.negedge_event());
         if (!rst_n.read()) continue;
+        start_pending = false;
 
         if (!clk_en.read() || !div_valid.read()) continue;
 
@@ -48,7 +64,7 @@ void spi_timing_cpol_cpha::timing_proc()
 
             for (sc_uint<6> i = 0; i < width; ++i)
             {
-                wait(half_t);
+                wait(half_t, rst_n.negedge_event());
                 if (!rst_n.read()) break;
 
                 sck_cur = !sck_cur;
@@ -57,7 +73,7 @@ void spi_timing_cpol_cpha::timing_proc()
                 wait(SC_ZERO_TIME);
                 sample_en.write(false);
 
-                wait(half_t);
+                wait(half_t, rst_n.negedge_event());
                 if (!rst_n.read()) break;
 
                 sck_cur = !sck_cur;
@@ -75,7 +91,7 @@ void spi_timing_cpol_cpha::timing_proc()
         {
             for (sc_uint<6> i = 0; i < width; ++i)
             {
-                wait(half_t);
+                wait(half_t, rst_n.negedge_event());
                 if (!rst_n.read()) break;
 
                 sck_cur = !sck_cur;
@@ -84,7 +100,7 @@ void spi_timing_cpol_cpha::timing_proc()
                 wait(SC_ZERO_TIME);
                 shift_en.write(false);
 
-                wait(half_t);
+                wait(half_t, rst_n.negedge_event());
                 if (!rst_n.read()) break;
 
                 sck_cur = !sck_cur;

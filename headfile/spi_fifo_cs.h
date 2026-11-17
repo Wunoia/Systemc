@@ -48,6 +48,8 @@ SC_MODULE(spi_fifo_cs)
     sc_out<bool>        cs_n;           // 片选信号，低有效，对外输出到从机
 
     SC_CTOR(spi_fifo_cs);
+    bool write_tx_data(const sc_uint<32>& data);  // TLM TXDR 写入，占用一个 FIFO 槽
+    sc_uint<32> read_rx_data();                   // TLM RXDR 读取并弹出队首
 private:
     void fifo_proc();   // THREAD：FIFO读写、溢出检测、产生start_trig
     void pulse_proc();  // THREAD：把内部事件整形为单 delta 宽的 start_trig 脉冲
@@ -55,6 +57,7 @@ private:
     //===== 内部工具 =====
     void reset_state();                 // 复位指针、空满标志与状态机
     void handle_tx_write();             // 处理一次 TXDR 写入
+    void handle_tx_available();         // 发布 TX 标志，必要时启动下一帧
     void handle_rx_read();              // 处理一次 RXDR 读取
     void handle_start_bit();            // 处理 start 位跳变
     void handle_frame_done();           // 处理一帧收发完成
@@ -67,6 +70,7 @@ private:
     bool pop_rx(sc_uint<32>& data);
     void update_flags();                // 刷新 empty/full 标志输出
     void update_rx_head();              // 刷新 rx_rdata 为 RX 队首数据
+    void update_rx_outputs();
 
     //===== 内部状态 =====
     enum state_t { ST_IDLE, ST_ACTIVE, ST_FRAME };
@@ -75,6 +79,8 @@ private:
     bool        m_cs_on;                // 片选当前是否处于“有效”状态
     bool        m_ovr;                  // RX 溢出标志（粘滞到 RX 被读空）
     sc_event    m_start_evt;            // 请求发一次 start_trig 脉冲
+    sc_event    m_reg_tx_written;
+    sc_event    m_reg_rx_read;
 
     // TX FIFO（循环队列）
     sc_uint<32> m_tx_mem[FIFO_DEPTH];

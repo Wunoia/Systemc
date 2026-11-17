@@ -27,7 +27,9 @@ SC_MODULE(spi_controller_top), public tlm::tlm_fw_transport_if<tlm::tlm_base_pro
 
     //===== 上报给QEMU的信号 =====
     sc_out<bool>        irq;            // 中断请求，上报QEMU中断控制器
-    sc_out<bool>        dma_req;        // DMA请求，通知DMA模块
+    sc_out<bool>        dma_req;        // 兼容汇总输出
+    sc_port<sc_signal_out_if<bool>, 1, SC_ZERO_OR_MORE_BOUND> dma_tx_req{"dma_tx_req"};
+    sc_port<sc_signal_out_if<bool>, 1, SC_ZERO_OR_MORE_BOUND> dma_rx_req{"dma_rx_req"};
 
     SC_CTOR(spi_controller_top);
     ~spi_controller_top();
@@ -38,9 +40,6 @@ SC_MODULE(spi_controller_top), public tlm::tlm_fw_transport_if<tlm::tlm_base_pro
     virtual unsigned int transport_dbg(tlm_generic_payload& trans);
 
 private:
-    // 清脉冲，避免 b_transport 里 wait
-    void clear_pulse_proc();
-
     spi_clk_div_width*    m_clk_div;    // 分频与位宽子模块
     spi_timing_cpol_cpha* m_timing;     // 时序生成子模块
     spi_status_gen*       m_status;     // 状态生成子模块
@@ -66,14 +65,14 @@ private:
     sc_signal<sc_uint<32>> tx_parallel; // FIFO→移位：待发送并行数据
     sc_signal<sc_uint<32>> rx_parallel; // 移位→FIFO：收满的并行数据
 
-    sc_signal<sc_uint<32>> rx_rdata;    // FIFO→顶层：QEMU读取的接收数据
-
     sc_signal<bool> trans_done;         // 移位→FIFO/状态：帧完成脉冲
     sc_signal<bool> busy;               // 移位→状态：传输忙标志
 
-    sc_signal<sc_uint<32>> tx_wdata;    // 顶层→FIFO：QEMU写入的发送数据
-    sc_signal<bool> tx_wen;             // 顶层→FIFO：TX FIFO写使能
-    sc_signal<bool> rx_ren;             // 顶层→FIFO：RX FIFO读使能
+    // FIFO 的独立信号接口。顶层 TLM 直接读写 FIFO。
+    sc_signal<sc_uint<32>> tx_wdata;
+    sc_signal<sc_uint<32>> rx_rdata;
+    sc_signal<bool> tx_wen;
+    sc_signal<bool> rx_ren;
     sc_signal<sc_uint<8>> cs_cfg;       // 顶层→FIFO：片选配置
 
     sc_signal<sc_uint<6>> data_width_cfg; // 寄存器→分频：位宽配置
@@ -85,7 +84,7 @@ private:
     sc_signal<bool> rx_fifo_full;       // FIFO→状态：RX满
     sc_signal<bool> ovr_err;            // FIFO→状态：溢出错误
 
-    sc_signal<sc_uint<16>> status_reg;  // 状态→顶层：打包状态寄存器
+    sc_signal<sc_uint<16>> status_reg;  // 状态模块发布的信号快照
     sc_signal<bool> evt_txe;            // 状态→中断：TX空事件
     sc_signal<bool> evt_rxne;           // 状态→中断：RX非空事件
     sc_signal<bool> evt_tc;             // 状态→中断：传输完成事件
@@ -94,7 +93,7 @@ private:
     sc_signal<sc_uint<16>> int_en_reg;  // 寄存器→中断：中断使能掩码
     sc_signal<sc_uint<16>> dma_en_reg;  // 寄存器→中断：DMA使能掩码
 
-    sc_signal<bool> clear_events;       // 寄存器→状态：清除事件标志
+    sc_signal<bool> clear_events;       // 状态模块的独立清除输入
 };
 
 #endif
