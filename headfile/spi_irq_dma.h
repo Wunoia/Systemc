@@ -17,11 +17,13 @@ SC_MODULE(spi_irq_dma)
 
     //===== 输出信号 =====
     sc_out<bool>        irq;            // 最终中断请求，上报QEMU中断控制器
-    sc_out<bool>        dma_req;        // DMA请求信号，通知DMA模块取/放数据
+    sc_out<bool>        dma_req;        // 兼容汇总输出
+    sc_port<sc_signal_out_if<bool>, 1, SC_ZERO_OR_MORE_BOUND> dma_tx_req{"dma_tx_req"};
+    sc_port<sc_signal_out_if<bool>, 1, SC_ZERO_OR_MORE_BOUND> dma_rx_req{"dma_rx_req"};
 
     SC_CTOR(spi_irq_dma);
 private:
-    void comb_proc();   // METHOD：事件 & 掩码组合，生成irq/dma_req
+    void comb_proc();   // METHOD：事件 & 掩码组合，生成中断和 DMA 请求
 };
 
 #endif

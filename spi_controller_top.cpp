@@ -1,7 +1,7 @@
 #include "spi_controller_top.h"
+#include <cstdint>
 #include <cstring>
 
-SC_HAS_PROCESS(spi_controller_top);
 spi_controller_top::spi_controller_top(sc_module_name name)
     : sc_module(name), tgt_socket("tgt_socket")
 {
@@ -88,9 +88,8 @@ spi_controller_top::spi_controller_top(sc_module_name name)
     m_irq_dma->dma_en_reg(dma_en_reg);
     m_irq_dma->irq(irq);
     m_irq_dma->dma_req(dma_req);
-
-    
-    SC_THREAD(clear_pulse_proc);
+    m_irq_dma->dma_tx_req(dma_tx_req);
+    m_irq_dma->dma_rx_req(dma_rx_req);
 }
 
 spi_controller_top::~spi_controller_top()
@@ -103,23 +102,7 @@ spi_controller_top::~spi_controller_top()
     delete m_irq_dma;
 }
 
-void spi_controller_top::clear_pulse_proc()
-{
-    while(true)
-    {
-        wait(tx_wen.value_changed_event()
-             | rx_ren.value_changed_event()
-             | clear_events.value_changed_event());
-
-        wait(SC_ZERO_TIME);
-
-        if(tx_wen.read())       tx_wen.write(false);
-        if(rx_ren.read())       rx_ren.write(false);
-        if(clear_events.read()) clear_events.write(false);
-    }
-}
-
-void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
+void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time&)
 {
     tlm_command cmd = trans.get_command();
     sc_uint<64> addr = trans.get_address();
@@ -129,20 +112,24 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
     unsigned int be_len = trans.get_byte_enable_length();
 
     trans.set_response_status(TLM_OK_RESPONSE);
-    if(len != 4 || (be != nullptr && be_len != 0))
+    if (cmd != TLM_READ_COMMAND && cmd != TLM_WRITE_COMMAND)
+    {
+        trans.set_response_status(TLM_COMMAND_ERROR_RESPONSE);
+        return;
+    }
+    if (ptr == nullptr || len != sizeof(std::uint32_t) || (be != nullptr && be_len != 0))
     {
         trans.set_response_status(TLM_GENERIC_ERROR_RESPONSE);
         return;
     }
 
-    unsigned int tmp_in = 0;
-    memcpy(&tmp_in, ptr, 4);
-    sc_uint<32> wdata = tmp_in;
-
     addr &= 0xFF;
 
     if(cmd == TLM_WRITE_COMMAND)
     {
+        std::uint32_t tmp_in;
+        std::memcpy(&tmp_in, ptr, sizeof(tmp_in));
+        const sc_uint<32> wdata = tmp_in;
         switch(addr)
         {
             case SPI_CR1:
@@ -158,8 +145,8 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
                 data_width_cfg.write((sc_uint<6>)wdata);
                 break;
             case SPI_TXDR:
-                tx_wdata.write(wdata);
-                tx_wen.write(true);
+                if (rst_n.read() && !m_fifo_cs->write_tx_data(wdata))
+                    trans.set_response_status(TLM_GENERIC_ERROR_RESPONSE);
                 break;
             case SPI_IER:
                 int_en_reg.write((sc_uint<16>)wdata);
@@ -178,7 +165,7 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
                 break;
         }
     }
-    else if(cmd == TLM_READ_COMMAND)
+    else
     {
         sc_uint<32> rdata = 0;
         switch(addr)
@@ -199,12 +186,10 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
                 rdata = 0;
                 break;
             case SPI_RXDR:
-                rdata = rx_rdata.read();
-                rx_ren.write(true);
+                rdata = m_fifo_cs->read_rx_data();
                 break;
             case SPI_SR:
-                rdata = status_reg.read();
-                clear_events.write(true);
+                rdata = m_status->read_status();
                 break;
             case SPI_IER:
                 rdata = int_en_reg.read();
@@ -219,11 +204,9 @@ void spi_controller_top::b_transport(tlm_generic_payload& trans, sc_time& delay)
                 trans.set_response_status(TLM_ADDRESS_ERROR_RESPONSE);
                 break;
         }
-        unsigned int tmp_out = rdata.to_uint();
-        memcpy(ptr, &tmp_out, 4);
+        const std::uint32_t tmp_out = rdata.to_uint();
+        std::memcpy(ptr, &tmp_out, sizeof(tmp_out));
     }
-
-    delay = SC_ZERO_TIME;
 }
 
 tlm::tlm_sync_enum spi_controller_top::nb_transport_fw(

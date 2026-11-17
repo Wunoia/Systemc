@@ -19,4 +19,16 @@ using namespace tlm;
 #define SPI_DMAER   0x1C    // DMA使能寄存器：DMA请求屏蔽
 #define SPI_CSCR    0x20    // 片选控制寄存器：CS编号与极性
 
+// SPI_SR 位号。IER 使用低四位，DMAER 使用 TXE 和 RXNE 位。
+enum SpiStatusBit
+{
+    SPI_SR_TXE_BIT = 0,
+    SPI_SR_RXNE_BIT = 1,
+    SPI_SR_TC_BIT = 2,
+    SPI_SR_OVR_BIT = 3,
+    SPI_SR_BUSY_BIT = 4,
+    SPI_SR_TX_FULL_BIT = 5,
+    SPI_SR_RX_FULL_BIT = 6,
+};
+
 #endif

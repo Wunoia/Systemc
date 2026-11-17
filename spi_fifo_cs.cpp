@@ -1,14 +1,12 @@
 ﻿// 数据缓存（TX/RX FIFO）与片选信号控制
 // ---------------------------------------------------------------
 // 时序契约（与顶层 spi_controller_top、移位模块、时序模块配合）：
-//  1. tx_wen / rx_ren / start_bit 由顶层在 TLM 访问中抬高一拍，
-//     顶层 clear_pulse_proc 在下一个 delta 清除；本模块在事件所在
-//     delta 内读取电平，绝不额外 wait，避免漏采或重复计数。
+//  1. TLM 访问直接写入 TX FIFO 或读取 RX FIFO。单独使用本模块时，
+//     tx_wen 和 rx_ren 的上升沿也可触发一次读写。
 //  2. 帧启动流程：弹出 TX 队首 -> 写 tx_parallel -> 下一 delta 拉高
 //     start_trig 一个 delta，保证移位模块在 start_trig 上升沿采到的
 //     tx_parallel 已经是本帧数据（无 delta 竞争）。
-//  3. rx_rdata 始终镜像 RX 队首，b_transport 里“先读 RXDR 再写 rx_ren”
-//     的读-弹语义因此成立。
+//  3. FIFO 输出信号由主线程更新，rx_rdata 镜像 RX 队首。
 //  4. cs_n 是电平信号，随状态机与 cs_cfg 立即更新。
 // ---------------------------------------------------------------
 
@@ -85,9 +83,13 @@ void spi_fifo_cs::fifo_proc()
         // 每轮只处理本次唤醒对应的那些事件；电平门控防止重复处理
         if (tx_wen.event() && tx_wen.read())
             handle_tx_write();
+        if (m_reg_tx_written.triggered())
+            handle_tx_available();
 
         if (rx_ren.event() && rx_ren.read())
             handle_rx_read();
+        if (m_reg_rx_read.triggered())
+            update_rx_outputs();
 
         if (start_bit.event())
             handle_start_bit();
@@ -103,6 +105,8 @@ void spi_fifo_cs::fifo_proc()
              | start_bit.value_changed_event()
              | trans_done.value_changed_event()
              | cs_cfg.value_changed_event()
+             | m_reg_tx_written
+             | m_reg_rx_read
              | rst_n.negedge_event());
     }
 }
@@ -152,16 +156,31 @@ void spi_fifo_cs::reset_state()
     m_cs_on = false;
     m_ovr   = false;
 
-    update_flags();
-    update_rx_head();
+    update_rx_outputs();
     tx_parallel.write(0);
-    ovr_err.write(false);
     apply_cs();
 }
 
 //================================================================
 // 事件处理
 //================================================================
+bool spi_fifo_cs::write_tx_data(const sc_uint<32>& data)
+{
+    if (!rst_n.read() || !push_tx(data))
+        return false;
+
+    m_reg_tx_written.notify(SC_ZERO_TIME);
+    return true;
+}
+
+sc_uint<32> spi_fifo_cs::read_rx_data()
+{
+    sc_uint<32> data = 0;
+    if (rst_n.read() && pop_rx(data))
+        m_reg_rx_read.notify(SC_ZERO_TIME);
+    return data;
+}
+
 void spi_fifo_cs::handle_tx_write()
 {
     const sc_uint<32> data = tx_wdata.read();
@@ -175,8 +194,12 @@ void spi_fifo_cs::handle_tx_write()
         return;
     }
 
-    update_flags();
+    handle_tx_available();
+}
 
+void spi_fifo_cs::handle_tx_available()
+{
+    update_flags();
     // 序列已开启但上一帧已收完（处于等待数据态）时，写入立刻起一帧
     if (m_state == ST_ACTIVE && start_bit.read())
         start_frame();
@@ -186,18 +209,8 @@ void spi_fifo_cs::handle_rx_read()
 {
     sc_uint<32> data = 0;
 
-    if (!pop_rx(data))
-        return;                     // 空读：rx_rdata 保持 0
-
-    update_flags();
-    update_rx_head();
-
-    // RX 被读空后，溢出标志自动解除，便于软件恢复
-    if (m_rx_cnt == 0 && m_ovr)
-    {
-        m_ovr = false;
-        ovr_err.write(false);
-    }
+    if (pop_rx(data))
+        update_rx_outputs();
 }
 
 void spi_fifo_cs::handle_start_bit()
@@ -238,12 +251,10 @@ void spi_fifo_cs::handle_frame_done()
     if (!push_rx(rx_parallel.read()))
     {
         m_ovr = true;
-        ovr_err.write(true);        // RX 满：丢弃本帧，标志粘滞到 RX 被读空
         SC_REPORT_WARNING("spi_fifo_cs", "RX FIFO overflow, frame dropped");
     }
 
-    update_flags();
-    update_rx_head();
+    update_rx_outputs();
 
     if (start_bit.read())
     {
@@ -342,6 +353,8 @@ bool spi_fifo_cs::pop_rx(sc_uint<32>& data)
     data = m_rx_mem[m_rx_rp];
     m_rx_rp = next_index(m_rx_rp);
     --m_rx_cnt;
+    if (m_rx_cnt == 0)
+        m_ovr = false;
     return true;
 }
 
@@ -362,4 +375,11 @@ void spi_fifo_cs::update_rx_head()
         rx_rdata.write(0);
     else
         rx_rdata.write(m_rx_mem[m_rx_rp]);
+}
+
+void spi_fifo_cs::update_rx_outputs()
+{
+    update_flags();
+    update_rx_head();
+    ovr_err.write(m_ovr);
 }
