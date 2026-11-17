@@ -14,23 +14,27 @@ void spi_timing_cpol_cpha::timing_proc()
 
     while (true)
     {
-        if (!rst_n.read())
+        // 复位态
+        if (!rst_n.read())           // 低有效复位
         {
-            sck.write(cpol.read());
+            sck.write(cpol.read());  // 强制停留在idle状态
             sample_en.write(false);
             shift_en.write(false);
-            wait(rst_n.posedge_event());
-            continue;
+            wait(rst_n.posedge_event());  // 等待复位结束
+            continue;                     // 后续会刷新sck_cur
         }
 
-        sck_cur = cpol.read();
+        // 空闲态
+        sck_cur = cpol.read();         
         sck.write(sck_cur);
         sample_en.write(false);
         shift_en.write(false);
 
+        // 启动等待
         wait(start_trig.posedge_event() | rst_n.negedge_event());
         if (!rst_n.read()) continue;
 
+        // 门控，参数转换
         if (!clk_en.read() || !div_valid.read()) continue;
 
         double freq_val = sck_freq.read().to_double();

@@ -25,10 +25,13 @@ SC_MODULE(spi_status_gen)
     sc_out<bool>        evt_err;        // 事件：错误（溢出）
 
     SC_CTOR(spi_status_gen);
+    sc_uint<16> read_status();           // 读取快照并清除其中的锁存事件
 private:
     void status_proc(); // METHOD：组合逻辑组装status、产生事件
-    bool tc_flag;
-    bool ovr_flag;
+    sc_uint<16> status_value() const;
+    sc_event status_read;
+    bool tc_flag = false;
+    bool ovr_flag = false;
 };
 
 #endif
