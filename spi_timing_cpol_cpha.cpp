@@ -61,11 +61,23 @@ void spi_timing_cpol_cpha::timing_proc()
                 wait(SC_ZERO_TIME);
                 sample_en.write(false);
 
-                wait(half_t);
-                if (!rst_n.read()) break;
+                // 最后1bit采样后仍需等待half_t
+                // wait(half_t);
+                // if (!rst_n.read()) break;
 
-                sck_cur = !sck_cur;
-                sck.write(sck_cur);
+                // sck_cur = !sck_cur;
+                // sck.write(sck_cur);
+
+                // fixed
+                if(i + 1 < width)
+                {
+                    wait(half_t);
+                    if(!rst_n.read()) break;
+
+                    sck_cur = !sck_cur;
+                    sck.write(sck_cur);
+                }
+                // fix done
 
                 if (i + 1 < width)
                 {

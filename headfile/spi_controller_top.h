@@ -72,8 +72,14 @@ private:
     sc_signal<bool> busy;               // 移位→状态：传输忙标志
 
     sc_signal<sc_uint<32>> tx_wdata;    // 顶层→FIFO：QEMU写入的发送数据
-    sc_signal<bool> tx_wen;             // 顶层→FIFO：TX FIFO写使能
-    sc_signal<bool> rx_ren;             // 顶层→FIFO：RX FIFO读使能
+
+    // 报错信号
+    // Error (E115): sc_signal<T> cannot have more than one driver
+    // 解决方案：使用 SC_MANY_WRITERS 策略，允许多个驱动器
+    // clear_events同理
+    sc_signal<bool, SC_MANY_WRITERS> tx_wen;             // 顶层→FIFO：TX FIFO写使能
+    sc_signal<bool, SC_MANY_WRITERS> rx_ren;             // 顶层→FIFO：RX FIFO读使能
+    
     sc_signal<sc_uint<8>> cs_cfg;       // 顶层→FIFO：片选配置
 
     sc_signal<sc_uint<6>> data_width_cfg; // 寄存器→分频：位宽配置
@@ -94,7 +100,7 @@ private:
     sc_signal<sc_uint<16>> int_en_reg;  // 寄存器→中断：中断使能掩码
     sc_signal<sc_uint<16>> dma_en_reg;  // 寄存器→中断：DMA使能掩码
 
-    sc_signal<bool> clear_events;       // 寄存器→状态：清除事件标志
+    sc_signal<bool, SC_MANY_WRITERS> clear_events;       // 寄存器→状态：清除事件标志
 };
 
 #endif
