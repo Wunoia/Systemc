@@ -39,6 +39,8 @@ SC_MODULE(tester){
         top.irq(irq);
         top.dma_req(dma_req);
 
+        top.clk_sys_freq(clk_sys_freq);  // 漏绑端口，导致报E109 port not bound
+
         SC_THREAD(run);
     }
 private:
@@ -77,7 +79,8 @@ void tester::write32(uint32_t addr, uint32_t data){
     wait(delay);
     wait(1,SC_NS);
 
-    if(trans.get_command() != TLM_OK_RESPONSE) cout << "Error: write32 failed" << endl;
+    if(trans.get_response_status() != TLM_OK_RESPONSE) cout << "Error: write32 failed" << endl;
+    // get_response_status误写成了get_command
 }
 
 uint32_t tester::read32(uint32_t addr){
@@ -100,7 +103,8 @@ uint32_t tester::read32(uint32_t addr){
     wait(delay);
     wait(1, SC_NS);
 
-    if(trans.get_command() != TLM_OK_RESPONSE) cout << "Error: read32 failed" << endl;
+    if(trans.get_response_status() != TLM_OK_RESPONSE) cout << "Error: read32 failed" << endl;
+    // get_response_status误写成了get_command
 
     return (static_cast<uint64>(buf[0]) 
         | static_cast<uint64>((buf[1] << 8)) 
@@ -195,7 +199,8 @@ void tester::run(){
 
     if((read32(SPI_SR) & 0x0001u) == 0) cout << "写入TXDR后TXE = 0;" << endl;
 
-    write32(SPI_CSCR,  0X09);
+    // write32(SPI_CSCR,  0X09); 启动位写到了错误寄存器
+    write32(SPI_CR1,  0X09);  // fixed
     wait(2,SC_NS);
 
     if(cs_n.read() == false) cout << "CS = 0" << endl;
