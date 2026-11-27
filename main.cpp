@@ -206,6 +206,129 @@ void tester::run(){
     write32(SPI_CR1,0x08);
     wait(10,SC_NS);
     if(cs_n.read() == true) cout << "start 清零后 CS 自动释放(高)" << endl;
+    cnt++;
+
+    cout << "number of tests:"<< cnt << endl;
+    cout << "cpol = 1,cpha = 1时传输测试" << endl;
+    write32(SPI_WIDTH, 16);
+    write32(SPI_CR1, 0x0Eu);             // CPOL=1, CPHA=1, clk_en=1
+    write32(SPI_TXDR, 0x0000C3A5u);
+    write32(SPI_CR1, 0x0Fu);             // start=1
+    wait(3, SC_US);
+    if(cs_n.read() == false) cout << "CS = 0" << endl;
+    if(wait_tc(20)) cout << "传输完成" << endl;
+    if(sck.read() == true) cout << "CPOL=1,CPHA=1时 SCK = 1" << endl;
+    if(read32(SPI_RXDR) == 0x0000C3A5u) cout << "回环接收数据 = 0xC3A5" << endl;
+    write32(SPI_CR1,0x0Eu);
+    wait(10,SC_NS);
+    if(cs_n.read() == true) cout << "start 清零后 CS 自动释放(高)" << endl;
+    cnt++;
+
+    cout << "number of tests:"<< cnt << endl;
+    cout << "TX FIFO 测试" << endl;
+    write32(SPI_CR1, 0x08);
+    write32(SPI_WIDTH, 8);
+    const uint32_t tx_frames[4] = {0x11u, 0x22u, 0x33u, 0x44u};
+    for (int i = 0; i < 4; ++i)
+        write32(SPI_TXDR, tx_frames[i]);
+    if((read32(SPI_SR) & (1u << SPI_SR_TX_FULL_BIT)) == 0) cout << "4 帧写入后 TX FIFO 未满" << endl;
+        write32(SPI_CR1, 0x09);
+    int tc_cnt = 0;
+    for (int i = 0; i < 600 && tc_cnt < 4; ++i)
+    {
+        if (read32(SPI_SR) & (1u << SPI_SR_TC_BIT))
+            ++tc_cnt;
+        wait(100, SC_NS);
+    }
+    if(tc_cnt == 4) cout << "4 帧传输完成" << endl;
+    for(int i = 0; i < 4; ++i){
+        if(read32(SPI_RXDR) == tx_frames[i]){
+            cout << "回环接收数据 = 0x" << hex << tx_frames[i] << endl;
+        }
+    }
+    write32(SPI_CR1,0x08);
+    cnt++;
+
+    cout << "number of tests:"<< cnt << endl;
+    cout << "RX FIFO 溢出测试 " << endl;
+    for (int i = 0; i < 8; ++i)
+        write32(SPI_TXDR, static_cast<uint32_t>(i));
+    if((read32(SPI_SR) & (1u << SPI_SR_TX_FULL_BIT)) != 0) cout << "写满 8 帧后 TXFULL=1" << endl;
+    write32(SPI_CR1, 0x09);
+    wait(90, SC_US);                     // 8 帧 x 8us = 64us，留足余量
+    if((read32(SPI_SR) & (1u << SPI_SR_RX_FULL_BIT)) != 0) cout << "8 帧收完后 RXFULL=1"<< endl;
+    write32(SPI_TXDR, 0x00000088u);      // 第 9 帧 -> RX 溢出
+    wait(20, SC_US);
+    if((read32(SPI_SR) & (1u << SPI_SR_OVR_BIT)) != 0) cout <<  "第 9 帧触发 OVR=1" << endl;
+    for (int i = 0; i < 8; ++i)
+        if(read32(SPI_RXDR) == static_cast<uint32_t>(i)) cout << "溢出后回环接收数据 = 0x" << hex << static_cast<uint32_t>(i) << endl;
+    if((read32(SPI_SR) & (1u << SPI_SR_OVR_BIT)) == 0) cout << "RX 读空后 OVR 自动清除" << endl;
+    write32(SPI_CR1, 0x08);
+    cnt++;
+
+    cout << "number of tests:"<< cnt << endl;
+    cout << "中断 IER(TC) 与 DMA 请求 DMAER(TXE)" << endl;
+    write32(SPI_IER, 0x0000u);
+    write32(SPI_DMAER, 0x0001u);         // 使能 TXE 的 DMA 请求
+    wait(10, SC_NS);
+    if(dma_req.read() == true) cout << "TX FIFO 为空时产生 DMA 请求" << endl;
+    write32(SPI_DMAER, 0x0000u);
+    wait(10, SC_NS);
+    if(dma_req.read() == false) cout << "关闭 DMAER 后请求撤销" << endl;
+
+     write32(SPI_IER, 0x0004u);           // 使能 TC 中断
+    write32(SPI_TXDR, 0x00000077u);
+    write32(SPI_CR1, 0x09u);
+    // 先直接观察 irq 电平；不能先读 SR，因为读 SR 会立即清除 TC 事件
+    bool irq_seen = false;
+    for (int i = 0; i < 300 && !irq_seen; ++i)
+    {
+        if (irq.read()) irq_seen = true;
+        else wait(100, SC_NS);
+    }
+    if(irq_seen) cout << "TC 事件置位 irq" << endl;
+    if((read32(SPI_SR) & (1u << SPI_SR_TC_BIT)) != 0) cout << "TC 状态位置位" << endl;
+    wait(10, SC_NS);
+    if(irq.read() == false ) cout << "清除事件后 irq 撤销" << endl;
+    if(read32(SPI_RXDR) == 0x00000077u) cout << "TC 用例接收数据正确" << endl;
+    write32(SPI_CR1, 0x08u);
+    write32(SPI_IER, 0x0000u);
+    cnt++;
+
+    cout << "number of tests:"<< cnt << endl;
+    cout << "片选控制 CSCR (CS_OFF / CS_POL)" << endl;
+    write32(SPI_CSCR, 0x01u);            // CS_OFF = 1
+    write32(SPI_TXDR, 0x00000033u);
+    write32(SPI_CR1, 0x09u);
+    wait(2, SC_US);
+    if(cs_n.read() == true) cout << "CS_OFF=1 时传输中片选保持无效" << endl;
+    if(wait_tc(20)) cout << "CS_OFF 用例传输完成" << endl;
+    write32(SPI_CR1, 0x08u);
+
+    write32(SPI_CSCR, 0x02u);            // CS_POL = 1 (高有效)
+    write32(SPI_TXDR, 0x00000044u);
+    write32(SPI_CR1, 0x09u);
+    wait(2, SC_US);
+    if(cs_n.read() == true) cout << "CS_POL=1 时传输中片选为高" << endl;
+    if(wait_tc(20)) cout <<  "CS_POL 用例传输完成" << endl;
+    write32(SPI_CR1, 0x08u);
+    wait(10, SC_NS);
+    if(cs_n.read() == false) cout << "CS_POL=1 时空闲片选为低" << endl;
+    write32(SPI_CSCR, 0x00u);
+    (void)read32(SPI_RXDR);
+    (void)read32(SPI_RXDR);
+    cnt++;
+
+    cout << "number of tests:"<< cnt << endl;
+    cout << "4bit 位宽帧传输" << endl;
+    write32(SPI_WIDTH, 4);
+    write32(SPI_CR1, 0x08u);
+    write32(SPI_TXDR, 0x0000000Bu);
+    write32(SPI_CR1, 0x09u);
+    if(wait_tc(20)) cout << "4bit 用例传输完成" << endl;
+    if(read32(SPI_RXDR) == 0x0000000Bu ) cout << "4bit 回环接收 = 0xB" << endl;
+    write32(SPI_CR1, 0x08u);
+
 }
 
 bool tester::wait_tc(unsigned int timeout){
@@ -215,4 +338,10 @@ bool tester::wait_tc(unsigned int timeout){
         wait(100,SC_NS);
     }
     return false;
+}
+
+int sc_main(int argc, char* argv[]){
+    tester tester("tests");
+    sc_start();
+    return 0;
 }
